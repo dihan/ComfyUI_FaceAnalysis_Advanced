@@ -1,8 +1,19 @@
-# Face Analysis for ComfyUI
+# Face Analysis for ComfyUI (Advanced Fork)
 
-This extension uses [DLib](http://dlib.net/) or [InsightFace](https://github.com/deepinsight/insightface) to perform various operations on human faces.
+This is an advanced fork of [ComfyUI_FaceAnalysis](https://github.com/cubiq/ComfyUI_FaceAnalysis) that adds additional face analysis capabilities through InsightFace. This fork extends the original functionality with:
 
-The most obvious is to calculate the similarity between two faces. The best way to evaluate generated faces is to first send a batch of 3 reference images to the node and compare them to a forth reference (all actual pictures of the person). That will give you a baseline number that you can use to compare to generated images.
+- Age estimation
+- Gender recognition (enhanced)
+- Expression analysis
+- Gaze detection
+- Anti-spoofing detection
+- 3D face reconstruction
+
+These features are available directly through the InsightFace class without requiring additional nodes, making it easier to integrate advanced face analysis into your workflows.
+
+## Why This Fork?
+
+The original ComfyUI_FaceAnalysis is a great tool for basic face analysis, but InsightFace offers many more capabilities that weren't exposed in the original implementation. This fork aims to make these advanced features easily accessible while maintaining compatibility with the original codebase.
 
 > [!IMPORTANT]  
 > **2025.04.14** - I do not use ComfyUI as my main way to interact with Gen AI anymore as a result I'm setting the repository in "maintenance only" mode. If there are crucial updates or PRs I might still consider merging them but I do not plan any consistent work on this repo.

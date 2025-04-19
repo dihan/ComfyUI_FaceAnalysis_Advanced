@@ -114,6 +114,22 @@ class InsightFace:
                 return sorted(faces, key=lambda x:(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]), reverse=True)
         return None
 
+    def get_gender_locations(self, image):
+        faces = self.get_face(image)
+        if faces is not None:
+            male_faces = []
+            female_faces = []
+            for face in faces:
+                gender = face.get('gender', None)
+                if gender is not None:
+                    bbox = face['bbox']
+                    if gender == 0:  # female
+                        female_faces.append(bbox)
+                    else:  # male
+                        male_faces.append(bbox)
+            return male_faces, female_faces
+        return [], []
+
     def get_embeds(self, image):
         face = self.get_face(image)
         if face is not None:
@@ -174,6 +190,66 @@ class InsightFace:
             outline_forehead = outline
 
             return [landmarks, main_features, eyes, left_eye, right_eye, nose, mouth, left_brow, right_brow, outline, outline_forehead]
+        return None
+
+    def get_age(self, image):
+        """Get age estimation for faces in the image"""
+        faces = self.get_face(image)
+        if faces is not None:
+            ages = []
+            for face in faces:
+                age = face.get('age', None)
+                if age is not None:
+                    ages.append(age)
+            return ages
+        return None
+
+    def get_expression(self, image):
+        """Get expression analysis for faces in the image"""
+        faces = self.get_face(image)
+        if faces is not None:
+            expressions = []
+            for face in faces:
+                expression = face.get('expression', None)
+                if expression is not None:
+                    expressions.append(expression)
+            return expressions
+        return None
+
+    def get_gaze(self, image):
+        """Get gaze direction for faces in the image"""
+        faces = self.get_face(image)
+        if faces is not None:
+            gazes = []
+            for face in faces:
+                gaze = face.get('gaze', None)
+                if gaze is not None:
+                    gazes.append(gaze)
+            return gazes
+        return None
+
+    def get_anti_spoofing(self, image):
+        """Get anti-spoofing results for faces in the image"""
+        faces = self.get_face(image)
+        if faces is not None:
+            spoof_results = []
+            for face in faces:
+                spoof = face.get('spoof', None)
+                if spoof is not None:
+                    spoof_results.append(spoof)
+            return spoof_results
+        return None
+
+    def get_3d_face(self, image):
+        """Get 3D face reconstruction data for faces in the image"""
+        faces = self.get_face(image)
+        if faces is not None:
+            face_3d = []
+            for face in faces:
+                face_3d_data = face.get('face_3d', None)
+                if face_3d_data is not None:
+                    face_3d.append(face_3d_data)
+            return face_3d
         return None
 
 class DLib:
@@ -285,6 +361,7 @@ class FaceAnalysisModels:
         }}
 
     RETURN_TYPES = ("ANALYSIS_MODELS", )
+    RETURN_NAMES = ("ANALYSIS_MODELS",)
     FUNCTION = "load_models"
     CATEGORY = "FaceAnalysis"
 
@@ -779,27 +856,64 @@ class FaceWarp:
 
         return (result_image, result_mask)
 
-"""
-def cos_distance(source, test):
-    a = np.matmul(np.transpose(source), test)
-    b = np.sum(np.multiply(source, source))
-    c = np.sum(np.multiply(test, test))
-    return np.float64(1 - (a / (np.sqrt(b) * np.sqrt(c))))
+class FaceGender:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "analysis_models": ("ANALYSIS_MODELS", ),
+                "image": ("IMAGE", ),
+                "generate_image_overlay": ("BOOLEAN", { "default": True }),
+            },
+        }
 
-def euclidean_distance(source, test, norm=False):
-    if norm:
-        source = l2_normalize(source)
-        test = l2_normalize(test)
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "detect_gender"
+    CATEGORY = "FaceAnalysis"
 
-    dist = source - test
-    dist = np.sum(np.multiply(dist, dist))
-    dist = np.sqrt(dist)
+    def detect_gender(self, analysis_models, image, generate_image_overlay=True):
+        if generate_image_overlay:
+            font = ImageFont.truetype(os.path.join(os.path.dirname(os.path.realpath(__file__)), "Inconsolata.otf"), 32)
+            background_color = ImageColor.getrgb("#000000AA")
+            txt_height = font.getmask("Q").getbbox()[3] + font.getmetrics()[1]
 
-    return np.float64(dist)
+        out = []
+        
+        for i in image:
+            img = np.array(T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB'))
+            male_faces, female_faces = analysis_models.get_gender_locations(img)
+            
+            if generate_image_overlay:
+                tmp = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGBA')
+                draw = ImageDraw.Draw(tmp)
+                
+                # Draw male face boxes in blue
+                for bbox in male_faces:
+                    x1, y1, x2, y2 = map(int, bbox)
+                    draw.rectangle([x1, y1, x2, y2], outline=(0, 0, 255, 255), width=2)
+                    draw.text((x1, y1-10), "MALE", fill=(0, 0, 255, 255))
+                    print(f"\033[96mFace Analysis: Male face detected at [{x1}, {y1}, {x2}, {y2}]\033[0m")
+                
+                # Draw female face boxes in pink
+                for bbox in female_faces:
+                    x1, y1, x2, y2 = map(int, bbox)
+                    draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 255, 255), width=2)
+                    draw.text((x1, y1-10), "FEMALE", fill=(255, 0, 255, 255))
+                    print(f"\033[96mFace Analysis: Female face detected at [{x1}, {y1}, {x2}, {y2}]\033[0m")
+                
+                out.append(T.ToTensor()(tmp).permute(1, 2, 0))
+            else:
+                out.append(i)
 
-def l2_normalize(x):
-    return x / np.sqrt(np.sum(np.multiply(x, x)))
-"""
+        if not out:
+            raise Exception('No faces detected in images.')
+    
+        out = torch.stack(out)
+        
+        if out.shape[3] > 3:
+            out = out[:, :, :, :3]
+
+        return (out,)
 
 NODE_CLASS_MAPPINGS = {
     "FaceEmbedDistance": FaceEmbedDistance,
@@ -808,6 +922,7 @@ NODE_CLASS_MAPPINGS = {
     "FaceAlign": FaceAlign,
     "FaceSegmentation": faceSegmentation,
     "FaceWarp": FaceWarp,
+    "FaceGender": FaceGender,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -817,4 +932,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FaceAlign": "Face Align",
     "FaceSegmentation": "Face Segmentation",
     "FaceWarp": "Face Warp",
+    "FaceGender": "Face Gender",
 }
